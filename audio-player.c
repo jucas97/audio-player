@@ -31,6 +31,7 @@ static void application_callback (GstBus *, GstMessage *, CustomData *);
 static gboolean handle_keyboard (GIOChannel *, GIOCondition, CustomData *);
 static gboolean select_media_file(FILE *, CustomData *);
 static void set_playbin_uri(CustomData *);
+static void about_to_finish_cb (GstElement *, gpointer);
 
 int main (int argc, char *argv[])
 {
@@ -78,6 +79,7 @@ int main (int argc, char *argv[])
   g_signal_connect (G_OBJECT (bus), "message::error", (GCallback) error_callback, &data);
   g_signal_connect (G_OBJECT (bus), "message::eos", (GCallback) eos_callback, &data);
   g_signal_connect (G_OBJECT (bus), "message::application", (GCallback) application_callback, &data);
+  g_signal_connect (G_OBJECT (data.playbin), "about-to-finish", (GCallback) about_to_finish_cb, &data);
   gst_object_unref(bus);
 
   io_stdin = g_io_channel_unix_new (fileno (stdin));
@@ -267,4 +269,15 @@ static void set_playbin_uri(CustomData *data)
 
 close:
   fclose(playlist);
+}
+
+/* This function is called when new metadata is discovered in the stream */
+static void about_to_finish_cb (GstElement *playbin, gpointer udata) {
+  CustomData *data;
+
+  data = (CustomData *) udata;
+  if (data != NULL) {
+    ++data->next_playlist_index;
+    gst_element_post_message (playbin, gst_message_new_application (GST_OBJECT (playbin), gst_structure_new_empty ("set-uri")));
+  }
 }
