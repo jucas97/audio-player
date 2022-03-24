@@ -2,6 +2,7 @@
 /*
  * Copyright (C) 2022 Joel Pinto <joelstubemail@gmail.com>
  */
+#include <stdio.h>
 
 #include <gst/gst.h>
 
@@ -15,16 +16,19 @@ typedef struct _CustomData
 { 
   GstElement *playbin;
   GMainLoop *loop;
+  gboolean playing;             /* Playing or Paused */
 } CustomData;
 
 static void eos_callback (GstBus *, GstMessage *, CustomData *);
 static void error_callback (GstBus *, GstMessage *, CustomData *);
+static gboolean handle_keyboard (GIOChannel *, GIOCondition, CustomData *);
 
 int main (int argc, char *argv[])
 {
   CustomData data;
   GstStateChangeReturn ret;
   GstBus *bus;
+  GIOChannel *io_stdin;
   gint flags;
 
   /* Initialize GStreamer */
@@ -50,12 +54,17 @@ int main (int argc, char *argv[])
   g_signal_connect (G_OBJECT (bus), "message::eos", (GCallback) eos_callback, &data);
   gst_object_unref(bus);
 
+  io_stdin = g_io_channel_unix_new (fileno (stdin));
+  g_io_add_watch (io_stdin, G_IO_IN, (GIOFunc) handle_keyboard, &data);
+
   ret = gst_element_set_state (data.playbin, GST_STATE_PLAYING);
   if (ret == GST_STATE_CHANGE_FAILURE) {
     g_printerr ("Unable to set the pipeline to the playing state.\n");
     gst_object_unref (data.playbin);
     return -1;
   }
+
+  data.playing = TRUE;
 
   /* Create a GLib Main Loop and set it to run */
   data.loop = g_main_loop_new (NULL, FALSE);
@@ -85,4 +94,36 @@ static void error_callback (GstBus *bus, GstMessage *msg, CustomData *data) {
     g_printerr ("Unable to set the pipeline to the ready state.\n");
     gst_object_unref (data->playbin);
   }
+}
+
+/* Process keyboard input */
+static gboolean handle_keyboard (GIOChannel * source, GIOCondition cond, CustomData * data)
+{
+  gchar *str = NULL;
+  gboolean g_mute = FALSE;
+
+  if (g_io_channel_read_line (source, &str, NULL, NULL, NULL) != G_IO_STATUS_NORMAL) {
+    return TRUE;
+  }
+
+  switch (g_ascii_tolower (str[0])) {
+    case 'p':
+      data->playing = !data->playing;
+      gst_element_set_state (data->playbin, data->playing ? GST_STATE_PLAYING : GST_STATE_PAUSED);
+      g_print ("Setting state to %s\n", data->playing ? "PLAYING" : "PAUSE");
+      break;
+    case 'q':
+      g_main_loop_quit (data->loop);
+      break;
+    case 'm':
+      g_object_get(data->playbin, "mute", &g_mute, NULL);
+      g_object_set(data->playbin, "mute", !g_mute, NULL);
+      break;
+    default:
+      break;
+  }
+
+  g_free (str);
+
+  return TRUE;
 }
