@@ -22,11 +22,12 @@ typedef struct _CustomData
   gboolean playing;             /* Playing or Paused */
   gchar *playlist_path;
   gchar *media_file;
-  gint next_playlist_index;
+  guint next_playlist_index;
 } CustomData;
 
 static void eos_callback (GstBus *, GstMessage *, CustomData *);
 static void error_callback (GstBus *, GstMessage *, CustomData *);
+static void application_callback (GstBus *, GstMessage *, CustomData *);
 static gboolean handle_keyboard (GIOChannel *, GIOCondition, CustomData *);
 static gboolean select_media_file(FILE *, CustomData *);
 static void set_playbin_uri(CustomData *);
@@ -76,6 +77,7 @@ int main (int argc, char *argv[])
   gst_bus_add_signal_watch (bus);
   g_signal_connect (G_OBJECT (bus), "message::error", (GCallback) error_callback, &data);
   g_signal_connect (G_OBJECT (bus), "message::eos", (GCallback) eos_callback, &data);
+  g_signal_connect (G_OBJECT (bus), "message::application", (GCallback) application_callback, &data);
   gst_object_unref(bus);
 
   io_stdin = g_io_channel_unix_new (fileno (stdin));
@@ -120,6 +122,16 @@ static void error_callback (GstBus *bus, GstMessage *msg, CustomData *data) {
   }
 }
 
+static void application_callback (GstBus *bus, GstMessage *msg, CustomData *data)
+{
+  /* Set uri in main thread *- abstract from gstreamer threading model*/
+  if (g_strcmp0 (gst_structure_get_name (gst_message_get_structure (msg)), "set-uri") == 0) {
+      if (data != NULL) {
+        set_playbin_uri(data);
+      }
+  }
+}
+
 /* Process keyboard input */
 static gboolean handle_keyboard (GIOChannel * source, GIOCondition cond, CustomData * data)
 {
@@ -142,6 +154,15 @@ static gboolean handle_keyboard (GIOChannel * source, GIOCondition cond, CustomD
     case 'm':
       g_object_get(data->playbin, "mute", &g_mute, NULL);
       g_object_set(data->playbin, "mute", !g_mute, NULL);
+      break;
+    case '>':
+      ++data->next_playlist_index;
+      gst_element_post_message (data->playbin, gst_message_new_application (GST_OBJECT (data->playbin), gst_structure_new_empty ("set-uri")));
+      break;
+    case '<':
+      if (data->next_playlist_index > 0)
+        --data->next_playlist_index;
+      gst_element_post_message (data->playbin, gst_message_new_application (GST_OBJECT (data->playbin), gst_structure_new_empty ("set-uri")));
       break;
     default:
       break;
@@ -228,6 +249,7 @@ static void set_playbin_uri(CustomData *data)
       g_printerr ("Unable to set the pipeline to the ready state.\n");
       goto close;
     }
+    data->playing = FALSE;
   }
 
   if (select_media_file(playlist, data)) {
@@ -240,6 +262,7 @@ static void set_playbin_uri(CustomData *data)
     }
 
     data->playing = TRUE;
+    g_print("Playing media file %s, at playlist index %u\n", data->media_file, data->next_playlist_index);
   }
 
 close:
