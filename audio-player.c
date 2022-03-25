@@ -23,6 +23,7 @@ typedef struct _CustomData
   gchar *playlist_path;
   gchar *media_file;
   guint next_playlist_index;
+  guint media_file_chunk_size;
 } CustomData;
 
 static void eos_callback (GstBus *, GstMessage *, CustomData *);
@@ -40,7 +41,7 @@ int main (int argc, char *argv[])
   GstBus *bus;
   GIOChannel *io_stdin;
   gint flags;
- gint return_code;
+  gint return_code;
 
   if (argc == 1) {
     g_printerr("Missing playlist path");
@@ -64,6 +65,8 @@ int main (int argc, char *argv[])
     return_code = -1;
     goto error_media_file_allocation;
   }
+
+  data.media_file_chunk_size = MEDIAFILE_LENGTH;
 
   /* Build the pipeline */
   data.playbin = gst_element_factory_make ("playbin", "playbin");
@@ -188,7 +191,7 @@ static gboolean select_media_file(FILE *file, CustomData *data)
     return found_next;
   }
 
-  next_media_file = (gchar *) calloc(MEDIAFILE_LENGTH, sizeof(gchar));
+  next_media_file = (gchar *) calloc(data->media_file_chunk_size, sizeof(gchar));
   if (next_media_file == NULL) {
     g_printerr("Failed to allocate memory\n");
     return found_next;
@@ -200,7 +203,7 @@ static gboolean select_media_file(FILE *file, CustomData *data)
       if (data->next_playlist_index == playlist_index) {
         ++next_media_file_index;
         *(next_media_file + next_media_file_index) = '\0';
-        memset(data->media_file, 0, MEDIAFILE_LENGTH);
+        memset(data->media_file, 0, data->media_file_chunk_size);
         memcpy(data->media_file, next_media_file, next_media_file_index);
         found_next = TRUE;
         break;
@@ -212,9 +215,21 @@ static gboolean select_media_file(FILE *file, CustomData *data)
       c = (gchar) fgetc(file);
     }
 
-    if (next_media_file_index == MEDIAFILE_LENGTH) {
-      g_printerr("Reached maximum path size");
-      break;
+    /* +1 for the end of string null character */
+    if ((next_media_file_index + 1) == data->media_file_chunk_size) {
+      data->media_file_chunk_size += MEDIAFILE_LENGTH;
+      g_printerr("Reached maximum media file size, going to increase by: %u, new size %d\n", MEDIAFILE_LENGTH, data->media_file_chunk_size);
+      next_media_file = (gchar *) realloc(next_media_file, data->media_file_chunk_size);
+      if (next_media_file == NULL) {
+        g_printerr("failed to allocate memory for next media file\n");
+        break;
+      }
+      data->media_file = (gchar *) realloc(data->media_file, data->media_file_chunk_size);
+      if (data->media_file == NULL) {
+        g_printerr("failed to allocate memory for media file\n");
+        break;
+      }
+      memset((next_media_file + next_media_file_index), 0, MEDIAFILE_LENGTH);
     }
 
     *(next_media_file + next_media_file_index) = c;
