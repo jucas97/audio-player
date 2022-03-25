@@ -10,11 +10,11 @@ The user can interact with the player to perform following actions: (i) pause an
 ## Setup
 
 To build the audio player, just compile the audio-player target.
-´´´ make audio-player ´´´
+``` make audio-player ```
 
 and execute the binary with the playlist file location passed as argument.
-´´´ ./audio-player ~/playlist.txt ´´´
+``` ./audio-player ~/playlist.txt ```
 
 To compile with debug symbols, just add the -g flag to the audio-player rule.
 One way to debug the player, is to execute it with GNU Debugger.
-´´´ gdb --args audio-player ~/playlist.txt ´´´
+``` gdb --args audio-player ~/playlist.txt ```
