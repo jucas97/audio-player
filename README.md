@@ -26,3 +26,11 @@ Execute the binary with the playlist file location passed as argument.
 To compile with debug symbols, just add the -g flag to the audio-player rule.
 One way to debug the player, is to execute it with GNU Debugger.
 ``` gdb --args audio-player ~/playlist.txt ```
+
+## TODO
+
+* Implement a message popup notification mechanism to notify the user of which audio file is being played (instead of dumping it to the command line). WCS -> dbus com to ad hoc event based daemon to spawn and execute notify-send;
+* Volume control. Gst Playbin element already encompasses the volume property, just required to change it with *g_object_set()*;
+* Close application when playlist file reaches the end -> Quit Glib main loop and free resources;
+* Confirm there is no memory leak and dangling pointers (gdb, valgrind ...);
+* Specify user interface.
