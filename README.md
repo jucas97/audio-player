@@ -9,10 +9,18 @@ The user can interact with the player to perform following actions: (i) pause an
 
 ## Setup
 
+As mentioned in the *Overview* section, the playlist file is composed by the specification of the location and source type of each media file. An example is displayed below:
+
+```
+file:///home/yyy/Downloads/ainda-nao-acabei.mp3
+file:///home/yyy/Downloads/tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttestmediafilelen.mp3
+file:///home/yyy/Downloads/neptune-official-music-video.mp3
+```
+
 To build the audio player, just compile the audio-player target.
 ``` make audio-player ```
 
-and execute the binary with the playlist file location passed as argument.
+Execute the binary with the playlist file location passed as argument.
 ``` ./audio-player ~/playlist.txt ```
 
 To compile with debug symbols, just add the -g flag to the audio-player rule.
